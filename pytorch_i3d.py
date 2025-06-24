@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 import numpy as np
 
@@ -42,7 +41,7 @@ class MaxPool3dSamePadding(nn.MaxPool3d):
         #print x.size()
         #print pad
         x = F.pad(x, pad)
-        return super(MaxPool3dSamePadding, self).forward(x)
+        return super().forward(x)
     
 
 class Unit3D(nn.Module):
@@ -58,7 +57,7 @@ class Unit3D(nn.Module):
                  name='unit_3d'):
         
         """Initializes Unit3D module."""
-        super(Unit3D, self).__init__()
+        super().__init__()
         
         self._output_channels = output_channels
         self._kernel_shape = kernel_shape
@@ -123,7 +122,7 @@ class Unit3D(nn.Module):
 
 class InceptionModule(nn.Module):
     def __init__(self, in_channels, out_channels, name):
-        super(InceptionModule, self).__init__()
+        super().__init__()
 
         self.b0 = Unit3D(in_channels=in_channels, output_channels=out_channels[0], kernel_shape=[1, 1, 1], padding=0,
                          name=name+'/Branch_0/Conv3d_0a_1x1')
@@ -208,7 +207,7 @@ class InceptionI3d(nn.Module):
         if final_endpoint not in self.VALID_ENDPOINTS:
             raise ValueError('Unknown final endpoint %s' % final_endpoint)
 
-        super(InceptionI3d, self).__init__()
+        super().__init__()
         self._num_classes = num_classes
         self._spatial_squeeze = spatial_squeeze
         self._final_endpoint = final_endpoint
@@ -322,17 +321,12 @@ class InceptionI3d(nn.Module):
     def forward(self, x):
         for end_point in self.VALID_ENDPOINTS:
             if end_point in self.end_points:
-                x = self._modules[end_point](x) # use _modules to work with dataparallel
+                x = self.end_points[end_point](x)
 
-        x = self.logits(self.dropout(self.avg_pool(x)))
-        if self._spatial_squeeze:
-            logits = x.squeeze(3).squeeze(3)
-        # logits is batch X time X classes, which is what we want to work with
-        return logits
-        
+        return self.extract_features(x)
 
     def extract_features(self, x):
         for end_point in self.VALID_ENDPOINTS:
             if end_point in self.end_points:
-                x = self._modules[end_point](x)
-        return self.avg_pool(x)
+                x = self.end_points[end_point](x)
+        return self.logits(self.dropout(self.avg_pool(x)))
